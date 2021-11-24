@@ -8,8 +8,10 @@ import WebSocketTracker from 'bittorrent-tracker/lib/client/websocket-tracker'
 import randombytes from 'randombytes'
 import EventEmitter from 'events'
 import sha1 from 'simple-sha1'
-import debug from 'debug'
+import Debug from 'debug'
 import { Buffer } from 'buffer/'
+
+const debug = Debug('p2pt')
 
 /**
  * This character would be prepended to easily identify JSON msgs
