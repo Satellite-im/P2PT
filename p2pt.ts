@@ -4,11 +4,12 @@
  * Licensed under MIT
  */
 
-const WebSocketTracker = require('bittorrent-tracker/lib/client/websocket-tracker')
-const randombytes = require('randombytes')
-const EventEmitter = require('events')
-const sha1 = require('simple-sha1')
-const debug = require('debug')('p2pt')
+import WebSocketTracker from 'bittorrent-tracker/lib/client/websocket-tracker'
+import randombytes from 'randombytes'
+import EventEmitter from 'events'
+import sha1 from 'simple-sha1'
+import debug from 'debug'
+import { Buffer } from 'buffer/'
 
 /**
  * This character would be prepended to easily identify JSON msgs
@@ -23,6 +24,19 @@ const JSON_MESSAGE_IDENTIFIER = '^'
 const MAX_MESSAGE_LENGTH = 16000
 
 class P2PT extends EventEmitter {
+  announceURLs: string[]
+  trackers: {}
+  peers: {}
+  msgChunks: {}
+  responseWaiting: {}
+  identifierString: string
+  infoHash: any
+  private _peerIdBuffer: any
+  private _peerId: any
+  private _peerIdBinary: any
+  private _infoHashBuffer: any
+  private _infoHashBinary: any
+
   /**
    *
    * @param array announceURLs List of announce tracker URLs
@@ -50,7 +64,7 @@ class P2PT extends EventEmitter {
    * Set the identifier string used to discover peers in the network
    * @param string identifierString
    */
-  setIdentifier (identifierString) {
+  setIdentifier (identifierString: string) {
     this.identifierString = identifierString
     this.infoHash = sha1.sync(identifierString).toLowerCase()
     this._infoHashBuffer = Buffer.from(this.infoHash, 'hex')
@@ -61,7 +75,7 @@ class P2PT extends EventEmitter {
    * Connect to network and start discovering peers
    */
   start () {
-    this.on('peer', peer => {
+    this.on('peer', (peer: Peer) => {
       let newpeer = false
       if (!this.peers[peer.id]) {
         newpeer = true
@@ -83,7 +97,7 @@ class P2PT extends EventEmitter {
         }
       })
 
-      peer.on('data', data => {
+      peer.on('data', (data: Data | string) => {
         this.emit('data', peer, data)
 
         data = data.toString()
@@ -92,29 +106,29 @@ class P2PT extends EventEmitter {
 
         if (data[0] === JSON_MESSAGE_IDENTIFIER) {
           try {
-            data = JSON.parse(data.slice(1))
+            const parsedData = JSON.parse(data.slice(1)) as Data
 
             // A respond function
-            peer.respond = this._peerRespond(peer, data.id)
+            peer.respond = this._peerRespond(peer, parsedData.id)
 
-            let msg = this._chunkHandler(data)
+            let msg = this._chunkHandler(parsedData)
 
             // msg fully retrieved
             if (msg !== false) {
-              if (data.o) {
+              if (parsedData.o) {
                 msg = JSON.parse(msg)
               }
 
               /**
                * If there's someone waiting for a response, call them
                */
-              if (this.responseWaiting[peer.id][data.id]) {
-                this.responseWaiting[peer.id][data.id]([peer, msg])
-                delete this.responseWaiting[peer.id][data.id]
+              if (this.responseWaiting[peer.id][parsedData.id]) {
+                this.responseWaiting[peer.id][parsedData.id]([peer, msg])
+                delete this.responseWaiting[peer.id][parsedData.id]
               } else {
                 this.emit('msg', peer, msg)
               }
-              this._destroyChunks(data.id)
+              this._destroyChunks(parsedData.id)
             }
           } catch (e) {
             console.log(e)
@@ -122,7 +136,7 @@ class P2PT extends EventEmitter {
         }
       })
 
-      peer.on('error', err => {
+      peer.on('error', (err: Error) => {
         this._removePeer(peer)
         debug('Error in connection : ' + err)
       })
@@ -134,7 +148,7 @@ class P2PT extends EventEmitter {
     })
 
     // Tracker responded to the announce request
-    this.on('update', response => {
+    this.on('update', (response: { announce: string }) => {
       const tracker = this.trackers[this.announceURLs.indexOf(response.announce)]
 
       this.emit(
@@ -145,7 +159,7 @@ class P2PT extends EventEmitter {
     })
 
     // Errors in tracker connection
-    this.on('warning', err => {
+    this.on('warning', (err: Error) => {
       this.emit(
         'trackerwarning',
         err,
@@ -160,7 +174,7 @@ class P2PT extends EventEmitter {
    * Add a tracker
    * @param string announceURL Tracker Announce URL
    */
-  addTracker (announceURL) {
+  addTracker (announceURL: string) {
     if (this.announceURLs.indexOf(announceURL) !== -1) {
       throw new Error('Tracker already added')
     }
@@ -168,13 +182,13 @@ class P2PT extends EventEmitter {
     const key = this.announceURLs.push(announceURL)
 
     this.trackers[key] = new WebSocketTracker(this, announceURL)
-    this.trackers[key].announce(this._defaultAnnounceOpts())
+    this.trackers[key].announce(this._defaultAnnounceOpts(null))
   }
 
   /**
    * Remove a tracker without destroying peers
    */
-  removeTracker (announceURL) {
+  removeTracker (announceURL: string) {
     const key = this.announceURLs.indexOf(announceURL)
 
     if (key === -1) {
@@ -193,7 +207,7 @@ class P2PT extends EventEmitter {
    * Remove a peer from the list if all channels are closed
    * @param integer id Peer ID
    */
-  _removePeer (peer) {
+  _removePeer (peer: Peer) {
     if (!this.peers[peer.id]) { return false }
 
     delete this.peers[peer.id][peer.channelName]
@@ -213,12 +227,12 @@ class P2PT extends EventEmitter {
    * @param string msg Message to send
    * @param integer msgID ID of message if it's a response to a previous message
    */
-  send (peer, msg, msgID = '') {
+  send (peer: Peer, msg: any, msgID = '') {
     return new Promise((resolve, reject) => {
       const data = {
         id: msgID !== '' ? msgID : Math.floor(Math.random() * 100000 + 100000),
         msg
-      }
+      } as Data
 
       if (typeof msg === 'object') {
         data.msg = JSON.stringify(msg)
@@ -272,7 +286,7 @@ class P2PT extends EventEmitter {
   requestMorePeers () {
     return new Promise(resolve => {
       for (const key in this.trackers) {
-        this.trackers[key].announce(this._defaultAnnounceOpts())
+        this.trackers[key].announce(this._defaultAnnounceOpts(null))
       }
       resolve(this.peers)
     })
@@ -299,7 +313,7 @@ class P2PT extends EventEmitter {
    * Destroy object
    */
   destroy () {
-    let key
+    let key: string | number
     for (key in this.peers) {
       for (const key2 in this.peers[key]) {
         this.peers[key][key2].destroy()
@@ -315,8 +329,8 @@ class P2PT extends EventEmitter {
    * @param Peer peer Peer to send msg to
    * @param integer msgID Message ID
    */
-  _peerRespond (peer, msgID) {
-    return msg => {
+  _peerRespond (peer: Peer, msgID: string) {
+    return (msg: any) => {
       return this.send(peer, msg, msgID)
     }
   }
@@ -325,7 +339,7 @@ class P2PT extends EventEmitter {
    * Handle msg chunks. Returns false until the last chunk is received. Finally returns the entire msg
    * @param object data
    */
-  _chunkHandler (data) {
+  _chunkHandler (data: Data) {
     if (!this.msgChunks[data.id]) {
       this.msgChunks[data.id] = []
     }
@@ -344,7 +358,7 @@ class P2PT extends EventEmitter {
    * Remove all stored chunks of a particular message
    * @param integer msgID Message ID
    */
-  _destroyChunks (msgID) {
+  _destroyChunks (msgID: string) {
     delete this.msgChunks[msgID]
   }
 
@@ -352,9 +366,8 @@ class P2PT extends EventEmitter {
    * Default announce options
    * @param object opts Options
    */
-  _defaultAnnounceOpts (opts = {}) {
+  _defaultAnnounceOpts (opts: Opts | null) {
     if (opts.numwant == null) opts.numwant = 50
-
     if (opts.uploaded == null) opts.uploaded = 0
     if (opts.downloaded == null) opts.downloaded = 0
 
@@ -367,9 +380,9 @@ class P2PT extends EventEmitter {
   _fetchPeers () {
     for (const key in this.announceURLs) {
       this.trackers[key] = new WebSocketTracker(this, this.announceURLs[key])
-      this.trackers[key].announce(this._defaultAnnounceOpts())
+      this.trackers[key].announce(this._defaultAnnounceOpts(null))
     }
   }
 }
 
-module.exports = P2PT
+export default P2PT
