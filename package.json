@@ -4,6 +4,7 @@
   "description": "P2P connections with WebTorrent trackers",
   "main": "node.js",
   "browser": "p2pt.js",
+  "types": "P2PT.d.ts",
   "scripts": {
     "build": "npm run build:umd && npm run build:umd-tiny",
     "build:umd": "browserify ./p2pt.js -s P2PT > dist/p2pt.umd.js",
@@ -14,7 +15,7 @@
     "test": "standard && start-server-and-test 'node start-trackers.js' 5001 test:all"
   },
   "dependencies": {
-    "bittorrent-tracker": "^9.14.5",
+    "bittorrent-tracker": "Satellite-im/bittorrent-tracker",
     "randombytes": "^2.1.0",
     "simple-sha1": "^3.0.1"
   },
@@ -22,6 +23,7 @@
     "wrtc": "^0.4.6"
   },
   "devDependencies": {
+    "@types/simple-peer": "^9.11.3",
     "airtap": "^3.0.0",
     "browserify": "^16.5.1",
     "standard": "^14.3.4",
