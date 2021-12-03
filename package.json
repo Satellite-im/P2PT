@@ -15,7 +15,7 @@
     "test": "standard && start-server-and-test 'node start-trackers.js' 5001 test:all"
   },
   "dependencies": {
-    "bittorrent-tracker": "git+https://git@github.com/Satellite-im/bittorrent-tracker",
+    "bittorrent-tracker": "Satellite-im/bittorrent-tracker#simple-websocket-fix",
     "randombytes": "^2.1.0",
     "simple-sha1": "^3.0.1"
   },
